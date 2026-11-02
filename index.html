@@ -1,30 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <!-- Enlaces para PWA -->
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0f172a">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0,     maximum-scale=1.0, user-scalable=no">
-
-<!-- Registro del Service Worker -->
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./service-worker.js')
-        .catch(err => console.log('Error registrando Service Worker:', err));
-    });
-  }
-</script>
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Guitar Tuno</title>
     
-    <!-- Configuración para PWA / APK -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f172a">
 
-    <!-- Tailwind CSS para el diseño -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .needle {
@@ -35,27 +18,24 @@
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex flex-col justify-between items-center p-4 select-none">
 
-    <!-- Cabecera -->
     <header class="w-full max-w-md text-center py-4">
-        <h1 class="text-2xl font-bold tracking-wide text-indigo-400">Afinador de Guitarra</h1>
-        <p class="text-xs text-slate-400">Toca una cuerda cerca del micrófono</p>
+        <h1 class="text-2xl font-bold tracking-wide text-indigo-400">Guitar Tuno</h1>
+        <p class="text-xs text-slate-400">Afinador de Guitarra</p>
     </header>
 
-    <!-- Contenedor Principal -->
     <main class="w-full max-w-md flex flex-col items-center space-y-6 my-auto">
 
-        <!-- Botón de Inicio / Permiso de Micrófono -->
+        <!-- Botón de Inicio -->
         <div id="start-screen" class="text-center">
             <button id="btn-start" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-4 rounded-full shadow-lg text-lg transition transform active:scale-95">
                 Activar Micrófono
             </button>
-            <p class="text-xs text-slate-500 mt-3">Se solicitará permiso para usar el audio de tu dispositivo.</p>
+            <p id="error-msg" class="text-xs text-rose-400 mt-3"></p>
         </div>
 
-        <!-- Panel del Afinador (Oculto hasta activar) -->
+        <!-- Panel del Afinador -->
         <div id="tuner-panel" class="w-full flex flex-col items-center space-y-6 hidden">
             
-            <!-- Nota detectada -->
             <div class="relative flex flex-col items-center justify-center bg-slate-800 w-48 h-48 rounded-full border-4 border-slate-700 shadow-2xl">
                 <span id="note-name" class="text-6xl font-black text-indigo-300">--</span>
                 <span id="note-freq" class="text-sm text-slate-400 mt-1">0.0 Hz</span>
@@ -64,10 +44,8 @@
                 </div>
             </div>
 
-            <!-- Dial visual de precisión (Cents) -->
             <div class="w-full bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-inner flex flex-col items-center">
                 <div class="relative w-full h-16 overflow-hidden flex justify-center items-end">
-                    <!-- Marcas del dial -->
                     <div class="absolute w-full flex justify-between px-6 text-xs text-slate-500 font-mono">
                         <span>-50c</span>
                         <span>-25c</span>
@@ -75,15 +53,12 @@
                         <span>+25c</span>
                         <span>+50c</span>
                     </div>
-                    <!-- Línea central de referencia -->
                     <div class="absolute h-10 w-0.5 bg-emerald-500/50 top-2"></div>
-                    <!-- Aguja indicadora -->
                     <div id="needle" class="absolute h-12 w-1 bg-indigo-400 rounded-full bottom-0 needle" style="transform: translateX(0px);"></div>
                 </div>
                 <div id="cents-text" class="text-sm font-mono text-slate-400 mt-2">0 cents</div>
             </div>
 
-            <!-- Indicador de volumen de entrada (Micrófono) -->
             <div class="w-full bg-slate-800 p-3 rounded-xl border border-slate-700 flex items-center space-x-3">
                 <span class="text-xs text-slate-400 font-medium">Mic:</span>
                 <div class="flex-1 bg-slate-700 h-2.5 rounded-full overflow-hidden">
@@ -95,16 +70,15 @@
 
     </main>
 
-    <!-- Pie de página -->
     <footer class="w-full max-w-md text-center py-2 text-xs text-slate-500">
-        Listo para empaquetar en APK
+        Guitar Tuno App
     </footer>
 
-    <!-- Lógica de JavaScript para el procesamiento de audio -->
     <script>
         const btnStart = document.getElementById('btn-start');
         const startScreen = document.getElementById('start-screen');
         const tunerPanel = document.getElementById('tuner-panel');
+        const errorMsg = document.getElementById('error-msg');
         const noteNameEl = document.getElementById('note-name');
         const noteFreqEl = document.getElementById('note-freq');
         const statusBadge = document.getElementById('status-badge');
@@ -114,7 +88,6 @@
 
         let audioCtx, analyser, microphone, javascriptNode;
         
-        // Frecuencias estándar de las cuerdas de guitarra (E2 a E4)
         const notes = [
             { name: "E₂", freq: 82.41 },
             { name: "A₂", freq: 110.00 },
@@ -125,9 +98,27 @@
         ];
 
         btnStart.addEventListener('click', async () => {
+            errorMsg.textContent = "";
             try {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+                // Forzar compatibilidad con navegadores móviles y WebViews
+                window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+
+                if (audioCtx.state === 'suspended') {
+                    await audioCtx.resume();
+                }
+
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error("Tu dispositivo no soporta acceso a medios.");
+                }
+
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: { 
+                        echoCancellation: false, 
+                        autoGainControl: false, 
+                        noiseSuppression: false 
+                    } 
+                });
                 
                 startScreen.classList.add('hidden');
                 tunerPanel.classList.remove('hidden');
@@ -144,8 +135,8 @@
                 javascriptNode.connect(audioCtx.destination);
 
             } catch (err) {
-                alert('No se pudo acceder al micrófono. Asegúrate de dar permisos.');
                 console.error(err);
+                errorMsg.textContent = "Error: " + (err.message || "No se pudo acceder al micrófono.");
             }
         });
 
@@ -153,7 +144,6 @@
             const buffer = new Float32Array(analyser.fftSize);
             analyser.getFloatTimeDomainData(buffer);
 
-            // Medidor de nivel de micrófono
             let sum = 0;
             for (let i = 0; i < buffer.length; i++) {
                 sum += buffer[i] * buffer[i];
@@ -162,7 +152,6 @@
             let volume = Math.min(100, Math.round(rms * 400));
             micLevel.style.width = volume + '%';
 
-            // Autocorrelación simple para detectar frecuencia
             let freq = autoCorrelate(buffer, audioCtx.sampleRate);
             
             if (freq !== -1 && rms > 0.01) {
@@ -218,4 +207,39 @@
             return sampleRate / T0;
         }
 
-        function updateTuner(
+        function updateTuner(freq) {
+            noteFreqEl.textContent = freq.toFixed(1) + " Hz";
+
+            let closest = notes[0];
+            let minDiff = Math.abs(freq - closest.freq);
+            for (let i = 1; i < notes.length; i++) {
+                let diff = Math.abs(freq - notes[i].freq);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closest = notes[i];
+                }
+            }
+
+            noteNameEl.textContent = closest.name;
+
+            let cents = 1200 * Math.log2(freq / closest.freq);
+            centsText.textContent = (cents > 0 ? "+" : "") + cents.toFixed(1) + " cents";
+
+            let offset = Math.max(-50, Math.min(50, cents));
+            let pixelOffset = (offset / 50) * 120;
+            needle.style.transform = `translateX(${pixelOffset}px)`;
+
+            if (Math.abs(cents) < 5) {
+                statusBadge.textContent = "¡Afinado!";
+                statusBadge.className = "absolute bottom-4 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500 text-slate-950 font-extrabold shadow-lg";
+            } else if (cents < 0) {
+                statusBadge.textContent = "Grave (Apretar)";
+                statusBadge.className = "absolute bottom-4 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-500 text-slate-950 font-bold";
+            } else {
+                statusBadge.textContent = "Agudo (Aflojar)";
+                statusBadge.className = "absolute bottom-4 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-500 text-white font-bold";
+            }
+        }
+    </script>
+</body>
+</html>
