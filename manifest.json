@@ -1,0 +1,25 @@
+{
+  "short_name": "Tuno",
+  "name": "Guitar Tuno",
+  "description": "Afinador de guitarra preciso y en tiempo real con captura de micrófono.",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "portrait",
+  "categories": ["music", "utilities"]
+}
